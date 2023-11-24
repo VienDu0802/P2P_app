@@ -28,7 +28,7 @@ class ServerGUI:
         quit_button = tk.Button(sidebar, text="QUIT", bg="red", fg="white", width=12, font=("Arial", 11), height=1, command=master.destroy)
         quit_button.pack(side="bottom", pady=(10, 40), padx=2, ipady=4)
 
-        # Content Wrapper
+         # Content Wrapper
         content_Wrapper = tk.Frame(master, bg="lightgray")
         content_Wrapper.pack(side="right", fill="both", expand=True)
 
@@ -36,9 +36,10 @@ class ServerGUI:
         client_list_label = tk.Label(content_Wrapper, text="Client List", font=("Arial", 16), bg="lightgray")
         client_list_label.pack(side="top", pady=5)
 
-        # Content
-        content = tk.Frame(content_Wrapper, bg="white")
-        content.pack(side="top", fill="both", expand=True)
+        # Content - Danh sách client
+        self.client_list_box = tk.Listbox(content_Wrapper, height=20, width=50)
+        self.client_list_box.config(font=("Arial", 13))
+        self.client_list_box.pack(side="top", fill="both", expand=True)
 
         # CLI
         cli = tk.Frame(content_Wrapper, bg="lightgray", height=50)
@@ -58,6 +59,14 @@ class ServerGUI:
             self.server_thread.start()
             self.start_button.config(bg="lightgreen",fg="black", state=tk.DISABLED)
             self.stop_button.config(bg="lightgray", state=tk.NORMAL)
+        self.update_client_list()
+
+    def update_client_list(self):
+        if self.server:
+            client_list = self.server.get_client_list()
+            self.client_list_box.delete(0, tk.END)
+            for client in client_list:
+                self.client_list_box.insert(tk.END, client)
 
     def stop_server(self):
         if self.server is not None:

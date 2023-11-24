@@ -9,7 +9,6 @@ hardcoded_accounts = {
 }
 
 
-# Định nghĩa lớp FileClient để tương tác với server
 class FileClient:
     def __init__(self, host='localhost', port=5000):
         self.server_address = (host, port)

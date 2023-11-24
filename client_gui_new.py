@@ -17,6 +17,7 @@ class ClientGUI:
         master.title("Client Login")
         self.client = FileClient()
 
+
         # Nhãn "Login" ở trên cùng
         self.login_label = tk.Label(master, text="Login", font=("Arial", 20))
         self.login_label.pack(pady=10)
@@ -56,15 +57,11 @@ class ClientGUI:
             messagebox.showerror("Login error", "Incorrect username or password")
 
     def _register_label_clicked(self, event):
-        # Xử lý khi nhãn đăng ký được nhấp vào
-        # Mở cửa sổ đăng ký (giả sử có một lớp GUI đăng ký riêng)
         register_window = tk.Toplevel(self.master)
         register_window.title("Register")
         register_window.geometry("400x300")
-        # RegisterGUI(register_window)  # Giả sử RegisterGUI là lớp GUI cho việc đăng ký
 
     def _login_success(self):
-        # Đóng màn hình đăng nhập và mở màn hình chính
         self.master.destroy()
         main_screen = tk.Tk()
         main_screen.geometry("1000x700")
