@@ -1,6 +1,8 @@
 import socket
 import threading
 import cmd
+from tkinter import messagebox
+import queue
 import os
 
 class FileServer:
@@ -12,111 +14,93 @@ class FileServer:
         self.server_socket.listen(5)
         print(f"Server is running on IP: {self.host}, Port: {self.port}")
         self.clients = {}
-        self.clients_info = {}
         self.running = True
-        self.server_repo_path = "D:\Mang_MT\BTL\MyApp_Demo"
-    
-    def start(self):
-        print("Server is starting...")
-        while True:
-            client_socket, client_address = self.server_socket.accept()
-            print(f"Connected to client: {client_address[0]}:{client_address[1]}")
-            threading.Thread(target=self.handle_client, args=(client_socket, client_address)).start()
-
-    def get_client_list(self):
-        client_list = set()
-        server_data_file_path = os.path.join(self.server_repo_path, 'Server_Data.txt')
-        try:
-            with open(server_data_file_path, 'r') as server_data_file:
-                for line in server_data_file:
-                    _, client_ip = line.strip().split(" - ")
-                    client_list.add(client_ip)
-        except FileNotFoundError:
-            print("Server data file not found.")
-        return list(client_list)
-
-    def handle_publish(self, client_socket, command):
-        file_name = command.split()[1]
-        with open(file_name, 'wb') as file:
-            while True:
-                data = client_socket.recv(1024)
-                if not data:
-                    break
-                file.write(data)
-        print(f"File {file_name} has been received and saved.")
-
-        client_ip = client_socket.getpeername()[0]
-
-        print(f"File '{file_name}' published from client {client_ip}")
-
-
-        server_data_file_path = os.path.join(self.server_repo_path, 'Server_Data.txt')
-        with open(server_data_file_path, 'a') as server_data_file:
-            server_data_file.write(f"{file_name} - {client_ip}\n")
+        self.repo_base_path = "D:\\Mang_MT\\BTL\\MyApp_Demo"
+        self.client_repo_files_queue = queue.Queue()
 
     def accept_connections(self):
         while self.running:
             try:
                 client_socket, address = self.server_socket.accept()
                 print(f"Connection from {address} has been established.")
-                self.clients_info[address] = client_socket
-                self.clients[address] = []
+                self.clients[address] = {'socket': client_socket, 'connected': True}
                 client_handler = threading.Thread(target=self.handle_client, args=(client_socket, address))
                 client_handler.start()
             except OSError:
                 break
+        print(f"Current clients: {self.clients}")
 
-    def handle_client(self, client_socket, address):
+    def handle_client(self, client_socket, client_address):
         while True:
             try:
                 command = client_socket.recv(1024).decode('utf-8')
-                if not command:
-                    break
+                if command:
+                    print(f"Received command from {client_address}: {command}")  # Thêm dòng in này để kiểm tra lệnh nhận được từ client
+                    if command.startswith("ping"):
+                        if self.clients[client_address]['connected']:
+                            messagebox.showinfo("Ping", "This client is still connected to the server")
+                        else:
+                            messagebox.showinfo("Ping", "This client is not connected to the server")
+                    elif command == 'discover':
+                        connected_clients = ', '.join([str(addr) for addr, info in self.clients.items() if info['connected']])
+                        print(f"Sending list of connected clients to {client_address}: {connected_clients}")  # Thêm dòng in này để kiểm tra việc gửi danh sách client
+                        client_socket.send(f"Connected Clients: {connected_clients}".encode('utf-8'))
+                        # Gửi danh sách client thông qua queue
+                        self.client_list_queue.put(connected_clients)
+                    else:
+                        # Xử lý các lệnh khác
+                        pass
+            except:
+                self.clients[client_address]['connected'] = False
+                print(f"Client {client_address} disconnected. Updated clients: {self.clients}")
+                
+                # Update the client list box
+                self.update_client_list()
 
-                if command.startswith("publish"):
-                    self.handle_publish(client_socket, command)
-                elif command.startswith("fetch"):
-                    self.handle_fetch(client_socket, command)
-                elif command.startswith("delete"):
-                    self.handle_delete(client_socket, command)
-                elif command.startswith("upload"):
-                    self.handle_upload(client_socket, command)
-                else:
-                    print(f"Unknown command from {address}: {command}")
+    def get_client_list(self):
+        client_list = []
+        for client_address, client_info in self.clients.items():
+            client_status = "Connected" if client_info['connected'] else "Disconnected"
+            client_list.append(f"{client_address[0]}:{client_address[1]} - {client_status}")
+        return client_list
 
-            except ConnectionResetError:
-                break
-            except Exception as e:
-                print(f"An error occurred with client {address}: {e}")
-                break
+    def update_client_list(self):
+        client_list = self.get_client_list()
+        self.update_queue.put(client_list)
 
-        client_socket.close()
-        del self.clients[address]
-        print(f"Connection with {address} closed.")
-
-
-    def handle_fetch(self, client_socket, command):
-        file_name = command.split()[1]
+    def send_client_repo_files(self, client_socket, client_address):
         try:
-            with open(file_name, 'rb') as file:
-                data = file.read(1024)
-                while data:
-                    client_socket.send(data)
-                    data = file.read(1024)
-            print(f"File {file_name} has been sent.")
-        except FileNotFoundError:
-            print(f"File {file_name} not found.")
+            client_repo_path = os.path.join(self.repo_base_path, str(client_address))
+            if os.path.exists(client_repo_path):
+                repo_files = os.listdir(client_repo_path)
+                client_socket.send("Repo Files:\n".encode('utf-8'))
+                for file_name in repo_files:
+                    client_socket.send(f"{file_name}\n".encode('utf-8'))
+                self.client_repo_files_queue.put(repo_files)
+            else:
+                client_socket.send("Repo not found.\n".encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending repo files to {client_address}: {e}")
 
-    def handle_delete(self, client_socket, command):
-        file_name = command.split()[1]
-        if os.path.exists(file_name):
-            os.remove(file_name)
-            client_socket.send(f"File {file_name} deleted.".encode('utf-8'))
-        else:
-            client_socket.send(f"File {file_name} not found.".encode('utf-8'))
+    def ping_client(self, client_info):
+        try:
+            host, port_str = client_info.split(":")
+            port = int(port_str)
+            client_key = (host, port)
 
-    def handle_upload(self, client_socket, command):
-        self.handle_publish(client_socket, command)
+            if client_key in self.clients:
+                client_socket = self.clients[client_key]['socket']
+                client_socket.send("ping".encode('utf-8'))
+                response = client_socket.recv(1024).decode('utf-8')
+                print(f"Response from client {client_info}: {response}")
+            else:
+                print(f"No client found at {client_info}.")
+        except ValueError:
+            print("Invalid address format. Use 'host:port'.")
+
+    def discover_clients(self):
+        connected_clients = ', '.join([str(addr) for addr, info in self.clients.items() if info['connected']])
+        print(f"Connected Clients: {connected_clients}")
 
     def shutdown_server(self):
         self.running = False
@@ -134,12 +118,39 @@ class ServerCLI(cmd.Cmd):
     def __init__(self, server):
         super().__init__()
         self.server = server
+        self.server.update_queue = queue.Queue()
 
-    def do_exit(self, arg):
-        """Exit the server CLI"""
-        self.server.shutdown_server()
-        print("Shutting down the server.")
-        return True
+    def cmdloop(self):
+        while True:
+            try:
+                client_list = self.server.update_queue.get()
+                self.update_gui_client_list(client_list)
+                super().cmdloop()
+            except KeyboardInterrupt:
+                print("Shutting down the server via KeyboardInterrupt.")
+                self.server.shutdown_server()
+                break
+
+    def default(self, line):
+        self.server.execute_cli_command(line)
+
+    def do_ping(self, arg):
+        print(f"Executing ping command for: {arg}")
+        try:
+            host, port_str = arg.split(":")
+            port = int(port_str)
+            client_key = (host, port)
+
+            print(f"Checking client at {client_key}")
+
+            if client_key in self.server.clients:
+                status = "connected" if self.server.clients[client_key]['connected'] else "not connected"
+                print(f"Client {arg} is {status}.")
+            else:
+                print(f"No client found at {arg}.")
+        except ValueError:
+            print("Invalid address format. Use 'host:port'.")
+
 
 if __name__ == "__main__":
     server = FileServer()

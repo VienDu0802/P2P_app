@@ -27,6 +27,23 @@ class FileClient:
             print(f"Repository path '{repo_path}' not found.")
             return []
 
+    def handle_server_responses(self):
+        while True:
+            try:
+                response = self.server_socket.recv(1024).decode('utf-8')
+                if response:
+                    print(f"Received response from server: {response}")  # Thêm dòng in này để kiểm tra phản hồi từ server
+                    if response.startswith("Connected Clients:"):
+                        # Xử lý danh sách client
+                        connected_clients = response.split(":")[1].strip()
+                        self.update_gui_client_list(connected_clients.split(', '))
+                    else:
+                        # Xử lý các phản hồi khác từ server
+                        pass
+            except:
+                print("Server connection lost.")
+                break
+
     def publish_file(self, local_path, file_name):
         self.send_command(f"publish {file_name}")
         try:

@@ -1,6 +1,6 @@
+from client import FileClient
 import tkinter as tk
 from tkinter import messagebox, filedialog
-from client import FileClient
 from tkinter import font
 import os
 import subprocess
